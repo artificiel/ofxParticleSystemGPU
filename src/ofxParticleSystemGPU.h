@@ -59,6 +59,8 @@ public:
 	enum DynamicTextures : int
     {
         COLOR_STATIC,
+        COLOR_STATIC2,
+        COLOR_STATIC3,
         VECTOR_FIELD,
         OPTICAL_FLOW,
 		MASK
@@ -68,8 +70,9 @@ public:
         
     void		init				( unsigned width, unsigned height, int screenW , int screenH );
 
-	void		update				( );
-    void		draw				( );
+    void		update				( );
+    void		updateXY			( float x, float y);
+    void		draw				( ofBlendMode blendMode, float alpha);
         
     void		loadDataTexture		( unsigned idx, float* data, unsigned x = 0, unsigned y = 0, unsigned width = 0, unsigned height = 0 );
     void		zeroDataTexture		( unsigned idx, unsigned x = 0, unsigned y = 0, unsigned width = 0, unsigned height = 0 );
@@ -94,6 +97,8 @@ public:
 	void		zeroDynamicTexture	( int texIndex );
 
 	void		setMultiTexture		( ofTexture *tex );
+    
+    float x,y;
 
 	// Parámetros
 
@@ -128,6 +133,8 @@ public:
 	ofxFloatSlider		maxDstMax;				// maxima distancia desde el punto inicial MAX
 	ofxIntSlider		wind;					// 0  =  nada, 1 = viento, 2 = lluvia
 	ofxToggle			useMultiTex;			// Utiliza multitextura
+    float       alpha;
+    float   phasor;
 
 private:
         
@@ -139,7 +146,9 @@ private:
     ofVboMesh				mesh;
     ofShader				updateShader, drawShader;
 		
-	ofTexture				texStaticColor;		// textura del tamaño de la pantalla, que indica el color de cada pixel
+    ofTexture				texStaticColor;		// textura del tamaño de la pantalla, que indica el color de cada pixel
+    ofTexture				texStaticColor2;		// textura del tamaño de la pantalla, que indica el color de cada pixel
+    ofTexture				texStaticColor3;		// textura del tamaño de la pantalla, que indica el color de cada pixel
 	ofTexture				texVectorField;		// textura del tamaño de la pantalla, indica vector field en cada pixel (r,g; b = 0);
 	ofTexture				texOpticalFlow;		// textura del tamaño de la pantalla, indica vector field en cada pixel (r,g; b = 0);
 	ofTexture				texMask;			// textura del tamaño de la pantalla, mascara
@@ -148,6 +157,7 @@ private:
 	bool					bMultiTextureSet;	// si no está a true, no se puede utilizar multitextura
 
 	ofShader				renderShader;
+    
 
     unsigned				currentReadFbo;
     unsigned				textureLocation;

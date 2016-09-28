@@ -66,11 +66,15 @@ void ofxParticleSystemGPU::init(unsigned width, unsigned height, int screenW, in
 		fbos[i].allocate(s);
     }
         
-	texStaticColor.allocate(screenW, screenH, GL_RGBA32F_ARB);
+    texStaticColor.allocate(screenW, screenH, GL_RGBA32F_ARB);
+    texStaticColor2.allocate(screenW, screenH, GL_RGBA32F_ARB);
+    texStaticColor3.allocate(screenW, screenH, GL_RGBA32F_ARB);
 	texVectorField.allocate(screenW, screenH, GL_RGBA32F_ARB);
 	texOpticalFlow.allocate(screenW, screenH, GL_RGBA32F_ARB);
 	texMask.allocate(screenW, screenH, GL_RGBA32F_ARB);
-	zeroDynamicTexture(DynamicTextures::COLOR_STATIC);
+    zeroDynamicTexture(DynamicTextures::COLOR_STATIC);
+    zeroDynamicTexture(DynamicTextures::COLOR_STATIC2);
+    zeroDynamicTexture(DynamicTextures::COLOR_STATIC3);
 	zeroDynamicTexture(DynamicTextures::VECTOR_FIELD);
 	zeroDynamicTexture(DynamicTextures::OPTICAL_FLOW);
 	
@@ -128,7 +132,11 @@ void ofxParticleSystemGPU::init(unsigned width, unsigned height, int screenW, in
 
 
 }
-    
+
+void ofxParticleSystemGPU::updateXY(float newx, float newy) {
+    x = newx;
+    y = newy;
+}
 void ofxParticleSystemGPU::update()
 {
 
@@ -151,20 +159,24 @@ void ofxParticleSystemGPU::update()
 			//updateShader.setUniformTexture("texStaticColor", texStaticColor , texIndex++);
 			//if (useVectorField)
 			//	updateShader.setUniformTexture("texVectorField", texVectorField , texIndex++);
-			if (useOpticalFlow)
-				updateShader.setUniformTexture("texOpticalFlow", texOpticalFlow , texIndex++);
-			updateShader.setUniform1f("minVelocidad", minVelocidad); 
-			updateShader.setUniform1f("damping", damping); 
+            if (useOpticalFlow) {
+                updateShader.setUniformTexture("texOpticalFlow", texOpticalFlow , texIndex++);
+            }
+			updateShader.setUniform1f("minVelocidad", minVelocidad);
+            updateShader.setUniform1f("damping", damping);
+            updateShader.setUniform1f("screenwidth", screenWidth);
+            updateShader.setUniform1f("screenheight", screenHeight);
 			float vField = 0.0f;
 			if (useVectorField) vField = vectorField;
 			updateShader.setUniform1f("vectorFieldScalar", vField); 
 			float oFlow = 0;
 			if (useOpticalFlow) oFlow = opticalFlow;
-			updateShader.setUniform1f("opticalFlowScalar", oFlow); 
+            updateShader.setUniform1f("opticalFlowScalar", oFlow);
+
 			updateShader.setUniform1f("radiusSquared", radiusSquared * radiusSquared);
 			updateShader.setUniform3f("gravity", gravity->x, gravity->y, 0);
 			updateShader.setUniform1f("backToOrigin", (float)backToOrigin);
-			ofVec3f mouse(ofGetMouseX(), ofGetMouseY() , 0.f);
+			ofVec3f mouse(x, y , 0.f);
 			updateShader.setUniform3fv("mouse", mouse.getPtr());
 			updateShader.setUniform1f("elapsed", ofGetLastFrameTime());
 
@@ -178,7 +190,7 @@ void ofxParticleSystemGPU::update()
     currentReadFbo = 1 - currentReadFbo;
 }
     
-void ofxParticleSystemGPU::draw()
+void ofxParticleSystemGPU::draw( ofBlendMode blendMode, float alphaBlend)
 {
 
 	//ofBackground(0);
@@ -199,7 +211,9 @@ void ofxParticleSystemGPU::draw()
 		int texIndex = fbos[currentReadFbo].getNumTextures();
 			
 		renderShader.setUniformTexture("sparkTex", sparkImg.getTextureReference() , texIndex++ );
-		renderShader.setUniformTexture("texStaticColor", texStaticColor , texIndex++);
+    renderShader.setUniformTexture("texStaticColor", texStaticColor , texIndex++);
+    renderShader.setUniformTexture("texStaticColor2", texStaticColor2 , texIndex++);
+    renderShader.setUniformTexture("texStaticColor3", texStaticColor3 , texIndex++);
 		//renderShader.setUniformTexture("texVectorField", texVectorField , texIndex++);
 
 		if (useMultiTex && bMultiTextureSet)
@@ -210,20 +224,22 @@ void ofxParticleSystemGPU::draw()
 		renderShader.setUniform1f("useParticleTexture", useParticleTexture); 
 		renderShader.setUniform1f("blackWhenStill", blackWhenStill); 
 		renderShader.setUniform1f("minVelocidad", minVelocidad); 
-		renderShader.setUniform1f("useVida", useVida); 
-		renderShader.setUniform1f("useMaxDst", useMaxDst); 
+    renderShader.setUniform1f("useVida", useVida);
+    renderShader.setUniform1f("alpha", alpha*alphaBlend);
+		renderShader.setUniform1f("useMaxDst", useMaxDst);
 		renderShader.setUniform1i("useMultiTexture", (useMultiTex == true && bMultiTextureSet == true ? 1 : 0)); 
 			
 		renderShader.setUniform1f("factorVelocidadColor", (useVelocidadColor == true ? (float)velocidadColor : 0.0f)); 
 
-		renderShader.setUniform1f("colorStatic", (float)colorStatic); 
-		renderShader.setUniform1f("originStatic", originStatic ); 
+    renderShader.setUniform1f("colorStatic", (float)colorStatic);
+    renderShader.setUniform1f("phasor", (float)phasor);
+		renderShader.setUniform1f("originStatic", originStatic );
 
 		renderShader.setUniform1f("imgWidth", (float)sparkImg.getWidth());
 		renderShader.setUniform1f("imgHeight", (float)sparkImg.getHeight());
 
-		ofEnableBlendMode( OF_BLENDMODE_ALPHA );
-		ofSetColor(255);
+		ofEnableBlendMode( blendMode );
+		ofSetColor(int(255*alphaBlend));
 
 		mesh.draw();
     
@@ -341,10 +357,18 @@ void ofxParticleSystemGPU::loadIntoTexture( int texIndex, ofTexture *texture)
 	switch (texIndex)
 	{
 
-		case DynamicTextures::COLOR_STATIC:
-			texStaticColor = *texture;
-			break;
-			
+        case DynamicTextures::COLOR_STATIC:
+            texStaticColor = *texture;
+            break;
+            
+        case DynamicTextures::COLOR_STATIC2:
+            texStaticColor2 = *texture;
+            break;
+            
+        case DynamicTextures::COLOR_STATIC3:
+            texStaticColor3 = *texture;
+            break;
+            
 		case DynamicTextures::VECTOR_FIELD:
 			texVectorField = *texture;
 			break;
@@ -379,10 +403,18 @@ void ofxParticleSystemGPU::zeroDynamicTexture	( int texIndex )
 	switch (texIndex)
 	{
 
-		case DynamicTextures::COLOR_STATIC:
-			fbo = &texStaticColor;
-			break;
-			
+        case DynamicTextures::COLOR_STATIC:
+            fbo = &texStaticColor;
+            break;
+            
+        case DynamicTextures::COLOR_STATIC2:
+            fbo = &texStaticColor2;
+            break;
+            
+        case DynamicTextures::COLOR_STATIC3:
+            fbo = &texStaticColor3;
+            break;
+            
 		case DynamicTextures::VECTOR_FIELD:
 			fbo = &texVectorField;
 			break;
